@@ -22,12 +22,82 @@ const world = worlds.create(
   OBC.SimpleRenderer
 );
 // TODO: Initialize the Scene (SimpleScene), setup it, and clear the background
+world.scene = new OBC.SimpleScene(components);
+world.renderer = new OBC.SimpleRenderer(components, container);
+world.camera = new OBC.SimpleCamera(components);
 
+components.init();
+
+world.scene.setup();
+
+world.scene.three.background = null;
+
+const workerUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fragments = components.get(OBC.FragmentsManager);
+fragments.init(workerUrl);
+
+world.camera.controls.addEventListener("rest", () =>
+  fragments.core.update(true),
+);
+
+fragments.list.onItemSet.add(({ value: model }) => {
+  model.useCamera(world.camera.three);
+  world.scene.three.add(model.object);
+  fragments.core.update(true);
+});
+
+const fragPaths = ["https://thatopen.github.io/engine_components/resources/frags/school_arq.frag"];
+await Promise.all(
+  fragPaths.map(async (path) => {
+    const modelId = path.split("/").pop()?.split(".").shift();
+    if (!modelId) return null;
+    const file = await fetch(path);
+    const buffer = await file.arrayBuffer();
+    return fragments.core.load(buffer, { modelId });
+  }),
+);
 // TODO: Initialize the Renderer (SimpleRenderer) and attach it to the container
 
 // TODO: Initialize the Camera (OrthoPerspectiveCamera) and set the initial position
-
+await world.camera.controls.setLookAt(68, 23, -8.5, 21.5, -5.5, 23);
+await fragments.core.update(true);
 // TODO: Initialize the components (components.init())
+BUI.Manager.init();
+
+const panel = BUI.Component.create<BUI.PanelSection>(() => {
+  return BUI.html`
+    <bim-panel label="Worlds Tutorial" class="options-menu">
+      <bim-panel-section label="Controls">
+      
+        <bim-color-input 
+          label="Background Color" color="#202932" 
+          @input="${({ target }: { target: BUI.ColorInput }) => {
+            world.scene.config.backgroundColor = new THREE.Color(target.color);
+          }}">
+        </bim-color-input>
+        
+        <bim-number-input 
+          slider step="0.1" label="Directional lights intensity" value="1.5" min="0.1" max="10"
+          @change="${({ target }: { target: BUI.NumberInput }) => {
+            world.scene.config.directionalLight.intensity = target.value;
+          }}">
+        </bim-number-input>
+        
+        <bim-number-input 
+          slider step="0.1" label="Ambient light intensity" value="1" min="0.1" max="5"
+          @change="${({ target }: { target: BUI.NumberInput }) => {
+            world.scene.config.ambientLight.intensity = target.value;
+          }}">
+        </bim-number-input>
+        
+      </bim-panel-section>
+    </bim-panel>
+    `;
+});
+
+document.body.append(panel);
+
 
 // --------------------------------------------------------------------------
 // 2. THE TOOLS: Adding capabilities (Grid, IFC Loading, Fragments)
