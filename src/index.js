@@ -1,15 +1,26 @@
 import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
+import * as THREE from "three";
+import Stats from "stats.js";
+import * as BUI from "@thatopen/ui";
+// You have to import * as OBC from "@thatopen/components"
+import * as OBC from "../..";
 
 // --------------------------------------------------------------------------
 // 1. THE WORLD: Setting up the 3D Environment
 // --------------------------------------------------------------------------
 
 // TODO: Initialize the Components instance
-
+  const container = document.getElementById("container");
+  const components = new OBC.Components();
 // TODO: Get the Worlds component and create a new world
 // Tip: Use `const world = worlds.create();` to create a new world
-
+const worlds = components.get(OBC.Worlds);
+const world = worlds.create(
+  OBC.SimpleScene,
+  OBC.SimpleCamera,
+  OBC.SimpleRenderer
+);
 // TODO: Initialize the Scene (SimpleScene), setup it, and clear the background
 
 // TODO: Initialize the Renderer (SimpleRenderer) and attach it to the container
