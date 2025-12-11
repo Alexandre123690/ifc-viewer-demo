@@ -1,146 +1,339 @@
 import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import * as THREE from "three";
-import Stats from "stats.js";
-import * as BUI from "@thatopen/ui";
-// You have to import * as OBC from "@thatopen/components"
-import * as OBC from "../..";
+import * as OBF from "@thatopen/components-front";
 
 // --------------------------------------------------------------------------
 // 1. THE WORLD: Setting up the 3D Environment
 // --------------------------------------------------------------------------
 
-// TODO: Initialize the Components instance
-  const container = document.getElementById("container");
-  const components = new OBC.Components();
-// TODO: Get the Worlds component and create a new world
-// Tip: Use `const world = worlds.create();` to create a new world
+// Initialize the Components instance
+const components = new OBC.Components();
+
+// Get the Worlds component and create a new world
 const worlds = components.get(OBC.Worlds);
-const world = worlds.create(
-  OBC.SimpleScene,
-  OBC.SimpleCamera,
-  OBC.SimpleRenderer
-);
-// TODO: Initialize the Scene (SimpleScene), setup it, and clear the background
+const world = worlds.create();
+
+// Initialize the Scene (SimpleScene), setup it, and clear the background
 world.scene = new OBC.SimpleScene(components);
-world.renderer = new OBC.SimpleRenderer(components, container);
-world.camera = new OBC.SimpleCamera(components);
-
-components.init();
-
 world.scene.setup();
-
 world.scene.three.background = null;
 
-const workerUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fragments = components.get(OBC.FragmentsManager);
-fragments.init(workerUrl);
+// Initialize the Renderer (SimpleRenderer) and attach it to the container
+const container = document.getElementById("container");
+world.renderer = new OBC.SimpleRenderer(components, container);
 
-world.camera.controls.addEventListener("rest", () =>
-  fragments.core.update(true),
-);
+// Initialize the Camera (OrthoPerspectiveCamera) and set the initial position
+world.camera = new OBC.OrthoPerspectiveCamera(components);
+await world.camera.controls.setLookAt(78, 20, -2.2, 26, -4, 25);
 
-fragments.list.onItemSet.add(({ value: model }) => {
-  model.useCamera(world.camera.three);
-  world.scene.three.add(model.object);
-  fragments.core.update(true);
-});
-
-const fragPaths = ["https://thatopen.github.io/engine_components/resources/frags/school_arq.frag"];
-await Promise.all(
-  fragPaths.map(async (path) => {
-    const modelId = path.split("/").pop()?.split(".").shift();
-    if (!modelId) return null;
-    const file = await fetch(path);
-    const buffer = await file.arrayBuffer();
-    return fragments.core.load(buffer, { modelId });
-  }),
-);
-// TODO: Initialize the Renderer (SimpleRenderer) and attach it to the container
-
-// TODO: Initialize the Camera (OrthoPerspectiveCamera) and set the initial position
-await world.camera.controls.setLookAt(68, 23, -8.5, 21.5, -5.5, 23);
-await fragments.core.update(true);
-// TODO: Initialize the components (components.init())
-BUI.Manager.init();
-
-const panel = BUI.Component.create<BUI.PanelSection>(() => {
-  return BUI.html`
-    <bim-panel label="Worlds Tutorial" class="options-menu">
-      <bim-panel-section label="Controls">
-      
-        <bim-color-input 
-          label="Background Color" color="#202932" 
-          @input="${({ target }: { target: BUI.ColorInput }) => {
-            world.scene.config.backgroundColor = new THREE.Color(target.color);
-          }}">
-        </bim-color-input>
-        
-        <bim-number-input 
-          slider step="0.1" label="Directional lights intensity" value="1.5" min="0.1" max="10"
-          @change="${({ target }: { target: BUI.NumberInput }) => {
-            world.scene.config.directionalLight.intensity = target.value;
-          }}">
-        </bim-number-input>
-        
-        <bim-number-input 
-          slider step="0.1" label="Ambient light intensity" value="1" min="0.1" max="5"
-          @change="${({ target }: { target: BUI.NumberInput }) => {
-            world.scene.config.ambientLight.intensity = target.value;
-          }}">
-        </bim-number-input>
-        
-      </bim-panel-section>
-    </bim-panel>
-    `;
-});
-
-document.body.append(panel);
-
+// Initialize the components (components.init())
+components.init();
 
 // --------------------------------------------------------------------------
 // 2. THE TOOLS: Adding capabilities (Grid, IFC Loading, Fragments)
 // --------------------------------------------------------------------------
 
-// TODO: Initialize the Grids component and create a grid in the world
+  // ------------------------------------------------------------------------
+  // LECTURE 1: Fundamentals
+  // ------------------------------------------------------------------------
 
-// TODO: Initialize the IfcLoader component
+// Initialize the Grids component and create a grid in the world
+const grids = components.get(OBC.Grids);
+grids.create(world);
+
+// Initialize the IfcLoader component
 // Tip: Check this link https://docs.thatopen.com/Tutorials/Components/Core/IfcLoader on how to setup the IfcLoader
+const ifcLoader = components.get(OBC.IfcLoader);
+ifcLoader.onIfcImporterInitialized.add(function(importer) {
+  console.log(importer.classes);
+});
 
-// TODO: Initialize the FragmentsManager component
+await ifcLoader.setup({
+  autoSetWasm: false,
+  wasm: {
+    path: "https://unpkg.com/web-ifc@0.0.72/",
+    absolute: true,
+  },
+});
+
+// Initialize the FragmentsManager component
 // Tip #1: Check this link https://docs.thatopen.com/Tutorials/Components/Core/FragmentsManager on how to setup the FragmentsManager
 // Tip #2: You need to provide the path to the worker script (./assets/workers/worker.mjs)
+const workerUrl = "./assets/workers/worker.mjs";
+const fragments = components.get(OBC.FragmentsManager);
+fragments.init(workerUrl);
 
-// TODO: Connect Fragments to the World (update on camera rest, add loaded models to scene)
+// Connect Fragments to the World (update on camera rest, add loaded models to scene)
+world.camera.controls.addEventListener("rest", function() { fragments.core.update(true); });
+fragments.list.onItemSet.add(function({ value: model }) {
+  model.useCamera(world.camera.three);
+  world.scene.three.add(model.object);
+  fragments.core.update(true);
+});
+
+  // ------------------------------------------------------------------------
+  // LECTURE 2: Advanced Tools and Features
+  // ------------------------------------------------------------------------
+
+// TODO: Initialize and setup the Raycasters and the Highlighter components
+// First, initialize Raycasters for the world
+components.get(OBC.Raycasters).get(world);
+// Then get the Highlighter
+const highlighter = components.get(OBF.Highlighter);
+// Then setup the Highlighter selection
+highlighter.setup({
+ world,
+ selectMaterialDefinition: {
+ color: new THREE.Color("#87CEEB"),
+ opacity: 1,
+ transparent: false,
+ renderedFaces: 0,
+ },
+})
+
+// Ensure hider component is available for visibility filters
+const hider = components.get(OBC.Hider);
+if (hider && typeof hider.setup === 'function') {
+  try { hider.setup({ world }); } catch (e) { /* optional setup */ }
+}
+
+// When highlighter emits a selection, extract model/express IDs and fetch properties
+highlighter.events.select.onHighlight.add(async (selection) => {
+  console.log("Highlighted:", selection);
+  try {
+    const [modelId, expressIds] = Object.entries(selection)[0] ?? [];
+    if (!modelId || !expressIds) return;
+    const expressId = [...expressIds][0];
+    console.log("Selection:", { modelId, expressId });
+
+    // Try to fetch properties for the selected element via fragments.getData
+    if (fragments && typeof fragments.getData === 'function') {
+      try {
+        const data = await fragments.getData({ [modelId]: new Set([expressId]) });
+        console.log("Properties:", data);
+      } catch (err) {
+        console.warn("Could not retrieve properties", err);
+      }
+    }
+  } catch (err) {
+    console.warn('Selection handling error', err);
+  }
+});
+// TODO: Initialize and setup the Clipper component
+const clipper = components.get(OBC.Clipper);
+clipper.enabled = true;
+
+// TODO: Initialize and setup the Classifier component
+const classifier = components.get(OBC.Classifier);
+// Classifier will be used after loading a model to create groupings (Categories, Levels).
+// We call the classification functions inside `loadIfc` once a model is loaded.
 
 
 // --------------------------------------------------------------------------
 // 3. THE LOGIC: Application functions
 // --------------------------------------------------------------------------
 
+  // ------------------------------------------------------------------------
+  // LECTURE 1: Fundamentals
+  // ------------------------------------------------------------------------
+
+
+
 async function loadIfc(path) {
-  // TODO: Fetch the file from the path
-  // TODO: Get the array buffer from the file
-  // TODO: Create a Uint8Array from the buffer
-  // TODO: Load the buffer using the IfcLoader
+  // Fetch the file from the path
+  const file = await fetch(path);
+
+  // Get the array buffer from the file
+  const data = await file.arrayBuffer();
+
+  // Create a Uint8Array from the buffer
+  const buffer = new Uint8Array(data);
+
+  // Load the buffer using the IfcLoader
+  const model = await ifcLoader.load(buffer, false, "example", {
+    processData: {
+      progressCallback: function(progress) { console.log(progress); },
+    },
+  });
+  // After loading, update fragments (if applicable) and classify the model
+  try {
+    if (fragments && fragments.core && typeof fragments.core.update === 'function') {
+      await fragments.core.update(true);
+    }
+
+    if (classifier) {
+      // Create category and level groupings so the UI can display filters
+      try {
+        await classifier.byCategory({ classificationName: 'Categories' });
+      } catch (e) { console.warn('byCategory failed', e); }
+      try {
+        await classifier.byIfcBuildingStorey({ classificationName: 'Levels' });
+      } catch (e) { console.warn('byIfcBuildingStorey failed', e); }
+    }
+
+    // Refresh the UI panel if available
+    if (typeof updatePanel === 'function') updatePanel();
+  } catch (err) {
+    console.warn('Post-load classification/update error', err);
+  }
+
+  return model;
 }
 
 async function downloadFragments() {
-  // TODO: Get the first model from fragments.list
-  // TODO: Get the buffer from the model
-  // TODO: Create a File object from the buffer
-  // TODO: Create a download link and click it to download the file
+  // Get the first model from fragments.list
+  // fragments.list holds all the fragments loaded
+  const [model] = fragments.list.values();
+  if (!model) return;
+
+  // Get the buffer from the model
+  const fragsBuffer = await model.getBuffer(false);
+
+  // Create a File object from the buffer
+  const file = new File([fragsBuffer], "ifc_fragment.frag");
+
+  // Create a download link and click it to download the file
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(file);
+  link.download = file.name;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+  // ------------------------------------------------------------------------
+  // LECTURE 2: Advanced Tools and Features
+  // ------------------------------------------------------------------------
+
+// TODO: Handle selection: log IDs and try to fetch properties via fragments.getData
+
+// TODO: Double-click to create clipping planes
+window.ondblclick = () => {
+ clipper.create(world);
+};
+// TODO: Delete key to delete clipping planes
+window.onkeydown = (event) => {
+ if (event.code === "Delete" || event.code === "Backspace") {
+ if (clipper.enabled) clipper.delete(world);
+ }
+};
+// TODO: Toggle clipping planes
+function toggleClippings() {
+ for (const [, clipping] of clipper.list) {
+ clipping.enabled = !clipping.enabled;
+ }
+}
+// Delete all clipping planes
+function deleteAllClippings() {
+ clipper.deleteAll();
+}
+// TODO: Add default groupings function
+
+// Helper function to create checkbox UI for a classification group
+function createGroupToggles(classificationName) {
+  const classification = classifier.list.get(classificationName);
+  if (!classification) return [];
+
+  const checkboxes = [];
+  for (const [groupName, groupData] of classification) {
+    const onChange = async function(event) {
+      const visible = event.target.checked;
+      const items = await groupData.get();
+      await hider.set(visible, items);
+    };
+
+    checkboxes.push(BUI.html`
+      <bim-checkbox 
+        label="${groupName}" 
+        checked 
+        @change=${onChange}>
+      </bim-checkbox>
+    `);
+  }
+
+  return checkboxes;
 }
 
 // --------------------------------------------------------------------------
 // 4. THE UI: User Interface (BUI)
 // --------------------------------------------------------------------------
 
-// TODO: Initialize the BUI Manager
+// Initialize the BUI Manager
+BUI.Manager.init();
 
-// TODO: Create the UI panel using BUI.Component.create
-// Tip: The panel should contain buttons to load the IFC and download the fragments
 
-// TODO: Append the panel to the document body
-// TODO: Update the panel when a fragment is loaded
+// Create the UI panel using BUI.Component.create
+const [panel, updatePanel] = BUI.Component.create(function(_) {
+  // ------------------------------------------------------------------------
+  // LECTURE 1: Fundamentals
+  // ------------------------------------------------------------------------
+  async function onLoadIfc ({ target }) {
+    target.label = "Conversion in progress...";
+    target.loading = true;
+    await loadIfc("./assets/small.ifc");
+    target.loading = false;
+    target.label = "Load IFC";
+    updatePanel(); // Refresh UI to show classification groups
+  }
+
+  let downloadBtn = undefined;
+  if (fragments.list.size > 0) {
+    downloadBtn = BUI.html`
+      <bim-button label="Download Fragments" @click=${downloadFragments}></bim-button>
+    `;
+  }
+
+  // ------------------------------------------------------------------------
+  // LECTURE 2: Advanced Tools and Features
+  // ------------------------------------------------------------------------
+
+  const toggleClippingsBtn = BUI.html`
+    <bim-button label="Toggle Clippings" @click=${toggleClippings}></bim-button>
+  `;
+
+  const deleteAllClippingsBtn = BUI.html`
+    <bim-button label="Delete All" @click=${deleteAllClippings}></bim-button>
+  `;
+
+  const categoryToggles = createGroupToggles("Categories");
+  const levelToggles = createGroupToggles("Levels");
+
+  // ------------------------------------------------------------------------
+  // LECTURES 1 & 2: Panel
+  // ------------------------------------------------------------------------
+  return BUI.html`
+    <div class="options-menu options-menu-visible">
+      <bim-panel active label="IFC Viewer">
+        <bim-panel-section label="Controls">
+          <bim-button label="Load IFC" @click=${onLoadIfc}></bim-button>
+          ${downloadBtn}
+        </bim-panel-section>
+        
+        <bim-panel-section label="Categories">
+          ${categoryToggles.length > 0 
+            ? categoryToggles 
+            : BUI.html`<bim-label>Load a model first</bim-label>`}
+        </bim-panel-section>
+        
+        <bim-panel-section label="Levels">
+          ${levelToggles.length > 0 
+            ? levelToggles 
+            : BUI.html`<bim-label>Load a model first</bim-label>`}
+        </bim-panel-section>
+        
+        <bim-panel-section label="Clipping">
+          ${toggleClippingsBtn}
+          ${deleteAllClippingsBtn}
+          <bim-label>Dbl-click: Create clipping plane</bim-label>
+          <bim-label>Backspace: Delete clipping plane</bim-label>
+        </bim-panel-section>
+      </bim-panel>
+    </div>
+  `;
+}, {});
+
+// Append the panel to the document body
+document.body.append(panel);
+
+// Update the panel when a fragment is loaded
+fragments.list.onItemSet.add(function() { updatePanel(); });
